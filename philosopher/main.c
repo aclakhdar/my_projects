@@ -5,71 +5,73 @@
 /*                                                    +:+ +:+         +:+     */
 /*   By: aclakhda <aclakhda@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2024/07/03 19:00:11 by aclakhda          #+#    #+#             */
-/*   Updated: 2024/07/06 17:53:43 by aclakhda         ###   ########.fr       */
+/*   Created: 2024/11/11 17:58:34 by aclakhda          #+#    #+#             */
+/*   Updated: 2024/11/11 20:14:46 by aclakhda         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "header.h"
+#include "philo.h"
 
-int	check_av_content(char *str)
+int	join_threads(t_philo *p, t_inst *in)
 {
 	int	i;
 
 	i = 0;
-	while (str[i])
+	if (pthread_join(in->monitor, NULL))
 	{
-		if (str[i] < '0' || str[i] > '9')
-			return (1);
+		set_error(in);
+		return (print_error("The threads joining process has failed\n"));
+	}
+	while (i < in->nphilo)
+	{
+		if (pthread_join(p[i].th, NULL))
+		{
+			set_error(in);
+			return (print_error("The threads joining process has failed\n"));
+		}
 		i++;
 	}
-	return (0);
+	return (1);
 }
 
-int	ft_strlen(char *str)
+int	destroy_mutex(t_inst *in, t_fork *m, t_fork *f)
 {
 	int	i;
 
 	i = 0;
-	while (str[i])
+	if (pthread_mutex_destroy(&in->death_lock))
+		return (print_error("Mutex destruction failure\n"));
+	if (pthread_mutex_destroy(&in->print))
+		return (print_error("Mutex destruction failure\n"));
+	while (i < in->nphilo)
+	{
+		if (pthread_mutex_destroy(&m[i]))
+			return (print_error("Mutex destruction failure\n"));
+		if (pthread_mutex_destroy(&f[i]))
+			return (print_error("Mutex destruction failure\n"));
 		i++;
-	return (i);
-}
-
-void	print_and_ex(char *str, int i)
-{
-	write(1, str, ft_strlen(str));
-	write(1, "\n", 1);
-	exit(i);
-}
-
-void	check_av(char **av)
-{
-	if (ft_atoi(av[1]) > 200 || ft_atoi(av[1]) <= 0
-		|| check_av_content(av[1]) == 1)
-		print_and_ex("invalide philisopher number", 1);
-	if (ft_atoi(av[2]) <= 0 || check_av_content(av[2]))
-		print_and_ex("invalide time to die", 1);
-	if (ft_atoi(av[3]) <= 0 || check_av_content(av[3]))
-		print_and_ex("invalide time to eat", 1);
-	if (ft_atoi(av[4]) <= 0 || check_av_content(av[4]))
-		print_and_ex("invalide time to sleep", 1);
-	if (av[5] && (ft_atoi(av[5]) <= 0 || check_av_content(av[5])))
-		print_and_ex("invalide number of meal must eash philo eat!", 1);
+	}
+	return (1);
 }
 
 int	main(int ac, char **av)
 {
-	pthread_mutex_t	fork[200];
-	t_philo			philo[200];
-	t_mutex			init;
+	t_fork	f[200];
+	t_fork	m[200];
+	t_philo	p[200];
+	t_inst	inst;
 
-	if (ac != 5 && ac != 6)
-		print_and_ex("argumant error", 1);
-	check_av(av);
-	init_program(&init, philo);
-	init_forks(fork, ft_atoi(av[1]));
-	init_philo(philo, &init, fork, av);
-	creat_threads(&init, fork);
-	destroy_all(NULL, &init, fork);
+	if (!check_argument(ac, av))
+		return (1);
+	fill_instructions(&inst, ac, av);
+	if (!check_instructions(&inst, ac))
+		return (1);
+	if (!init_mutex(f, m, &inst))
+		return (1);
+	fill_philos(p, m, &inst, f);
+	if (!init_threads(p, &inst))
+		return (destroy_mutex(&inst, m, f), 1);
+	if (!join_threads(p, &inst))
+		return (destroy_mutex(&inst, m, f), 1);
+	destroy_mutex(&inst, m, f);
 }

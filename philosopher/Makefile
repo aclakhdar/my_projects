@@ -1,23 +1,28 @@
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    Makefile                                           :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: aclakhda <aclakhda@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2024/12/19 14:18:28 by aclakhda          #+#    #+#              #
+#    Updated: 2024/12/19 14:23:39 by aclakhda         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 NAME = philo
-SRC = init.c main.c philo_behave.c thread_work.c utils.c
-FLAGS = -Wall -Wextra -Werror
+CC = cc  -Wall -Werror -Wextra #-fsanitize=thread #-g3
+SRC = main.c checker.c init.c routine.c utils.c print.c monitoring.c actions.c
 OBJ = $(SRC:.c=.o)
-FLAGS = -Wall -Wextra -Werror
 
 all: $(NAME)
 
 $(NAME): $(OBJ)
-	@$(CC) $(FLAGS) -o $(NAME) $(OBJ)
-
-%.o: %.c
-	@$(CC) $(FLAGS) -c $< -o $@
-
+	@$(CC) -o $@ $^
 clean:
-	@rm -f $(OBJ)
-
+	@rm -rf $(OBJ)
 fclean: clean
-	@rm -f $(NAME)
-
+	@rm -rf $(NAME)
 re: fclean all
 
 .PHONY: all clean fclean re

@@ -5,95 +5,106 @@
 /*                                                    +:+ +:+         +:+     */
 /*   By: aclakhda <aclakhda@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2024/07/04 12:44:55 by aclakhda          #+#    #+#             */
-/*   Updated: 2024/07/08 00:09:43 by aclakhda         ###   ########.fr       */
+/*   Created: 2024/11/11 17:58:08 by aclakhda          #+#    #+#             */
+/*   Updated: 2024/12/19 14:15:10 by aclakhda         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "header.h"
+#include "philo.h"
 
-void	init_program(t_mutex *init, t_philo *philo)
-{
-	init->philo = philo;
-	init->dead_flags = 0;
-	pthread_mutex_init(&init->meal_lock, NULL);
-	pthread_mutex_init(&init->dead_lock, NULL);
-	pthread_mutex_init(&init->write_lock, NULL);
-}
-
-void	init_forks(pthread_mutex_t *fork, int num_philos)
+int	init_mutex(t_fork *f, t_fork *m, t_inst *in)
 {
 	int	i;
 
 	i = 0;
-	while (i < num_philos)
+	if (pthread_mutex_init(&in->print, NULL))
+		return (print_error("The mutex initialization has failed\n"));
+	if (pthread_mutex_init(&in->death_lock, NULL))
+		return (print_error("The mutex initialization has failed\n"));
+	while (i < in->nphilo)
 	{
-		pthread_mutex_init(&fork[i], NULL);
+		if (pthread_mutex_init(&f[i], NULL))
+			return (print_error("The mutex initialization has failed\n"));
+		if (pthread_mutex_init(&m[i], NULL))
+			return (print_error("The mutex initialization has failed\n"));
 		i++;
 	}
+	return (1);
 }
 
-void	init_p(t_philo *philo, char **av)
+int	init_threads(t_philo *p, t_inst *in)
 {
-	philo->time_to_die = (size_t)ft_atoi(av[2]);
-	philo->num_of_philo = ft_atoi(av[1]);
-	philo->time_to_eat = ft_atoi(av[3]);
-	philo->time_to_sleep = ft_atoi(av[4]);
-	if (av[5])
-		philo->num_time_eat = ft_atoi(av[5]);
+	int	i;
+
+	i = 0;
+	if (pthread_create(&in->monitor, NULL, monitoring, p))
+	{
+		set_error(in);
+		return (print_error("The threads creations has failed\n"));
+	}
+	while (i < in->nphilo)
+	{
+		if (pthread_create(&p[i].th, NULL, routine, &p[i]))
+		{
+			set_error(in);
+			return (print_error("The threads creation process has failed\n"));
+		}
+		i++;
+	}
+	return (1);
+}
+
+void	fill_instructions(t_inst *in, int ac, char **av)
+{
+	int	i;
+
+	i = 0;
+	in->nphilo = ft_atoi(av[1]);
+	in->tdie = ft_atoi(av[2]);
+	in->teat = ft_atoi(av[3]);
+	in->tsleep = ft_atoi(av[4]);
+	in->full = 0;
+	in->death = 0;
+	in->start = 0;
+	in->start = get_current_time();
+	if (ac == 5)
+		in->nmeals = -1;
+	else if (ac == 6)
+		in->nmeals = ft_atoi(av[5]);
+	while (i <= in->nphilo)
+		in->counter[i++] = 0;
+}
+
+void	fill_philos(t_philo *p, t_fork *m, t_inst *in, t_fork *f)
+{
+	int	i;
+
+	i = 0;
+	if (in->tdie < 100 && in->teat < 100)
+		in->THINK_TIME = 5;
 	else
-		philo->num_time_eat = -1;
-}
-
-void	init_philo(t_philo *philo, t_mutex *init, pthread_mutex_t *fork,
-		char **av)
-{
-	int	i;
-
-	i = 0;
-	while (i < ft_atoi(av[1]))
+		in->THINK_TIME = 20;
+	while (i < in->nphilo)
 	{
-		philo[i].id = i + 1;
-		init_p(&philo[i], av);
-		philo[i].l_fork = &fork[i];
-		philo[i].eating = 0;
-		philo[i].meal_count = 0;
-		philo[i].last_meal = get_current_time();
-		philo[i].start_time = get_current_time();
-		philo[i].meal_lock = &init->meal_lock;
-		philo[i].dead_lock = &init->dead_lock;
-		philo[i].write_lock = &init->write_lock;
-		philo[i].dead = &init->dead_flags;
-		if (i == 0)
-			philo[i].r_fork = &fork[philo[i].num_of_philo - 1];
-		else
-			philo[i].r_fork = &fork[i - 1];
-		i++;
-	}
-}
-
-void	creat_threads(t_mutex *init, pthread_mutex_t *fork)
-{
-	int			i;
-	pthread_t	spectator;
-
-	i = 0;
-	if (pthread_create(&spectator, NULL, &watching, init->philo) != 0)
-		destroy_all("thread creating error", init, fork);
-	while (i < init->philo[0].num_of_philo)
-	{
-		if (pthread_create(&init->philo[i].thread, NULL, &routin,
-				&init->philo[i]) != 0)
-			destroy_all("thread creating error", init, fork);
-		i++;
-	}
-	if (pthread_join(spectator, NULL) != 0)
-		destroy_all("thread_join failed", init, fork);
-	i = 0;
-	while (i < init->philo[0].num_of_philo)
-	{
-		if (pthread_join(init->philo[i].thread, NULL) != 0)
-			destroy_all("thread_join failed", init, fork);
+		p[i].id = i + 1;
+		p[i].lastmeal = get_current_time();
+		p[i].eating = 0;
+		p[i].full = 0;
+		p[i].turn = 0;
+		p[i].meal_lock = &m[i];
+		p[i].rfork = &f[i];
+		p[i].lfork = &f[(i + 1) % in->nphilo];
+		// if (p[i].id % 2)
+		// {
+		// 	p[i].rfork = &f[i];
+		// 	p[i].lfork = &f[(i + 1) % in->nphilo];
+		// }
+		// else
+		// {
+		// 	p[i].lfork = &f[i];
+		// 	p[i].rfork = &f[(i + 1) % in->nphilo];
+		// }
+		p[i].in = in;
 		i++;
 	}
 }
